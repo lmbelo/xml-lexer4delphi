@@ -34,6 +34,6 @@ requires
   rtl;
 
 contains
-  Lexer in '..\src\Lexer.pas';
+  Xml.Lexer in '..\src\Xml.Lexer.pas';
 
 end.

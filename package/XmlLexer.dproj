@@ -91,6 +91,7 @@
         <DCC_Description>Xml-lexer for Delphi</DCC_Description>
         <RuntimeOnlyPackage>true</RuntimeOnlyPackage>
         <DllSuffix>$(Auto)</DllSuffix>
+        <DCC_BplOutput>..\bin\$(Platform)\$(Config)</DCC_BplOutput>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Android)'!=''">
         <DCC_CBuilderOutput>None</DCC_CBuilderOutput>
@@ -168,7 +169,7 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="rtl.dcp"/>
-        <DCCReference Include="..\src\Lexer.pas"/>
+        <DCCReference Include="..\src\Xml.Lexer.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

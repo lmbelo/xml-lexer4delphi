@@ -1,4 +1,4 @@
-unit Lexer;
+unit Xml.Lexer;
 
 interface
 
