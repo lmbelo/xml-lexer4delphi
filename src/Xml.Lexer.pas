@@ -291,8 +291,8 @@ begin
       //gt action
       TActionPair.Create(TAction.gt, procedure(AChar: char) begin
         FAttrValue := String.Empty;
-        emit(TType.attributeName, FAttrName);
-        emit(TType.attributeValue, FAttrValue);
+        Emit(TType.attributeName, FAttrName);
+        Emit(TType.attributeValue, FAttrValue);
         FData := String.Empty;
         FState := TState.data;
       end),
@@ -300,8 +300,8 @@ begin
       TActionPair.Create(TAction.slash, procedure(AChar: char) begin
         FIsClosing := true;
         FAttrValue := String.Empty;
-        emit(TType.attributeName, FAttrName);
-        emit(TType.attributeValue, FAttrValue);
+        Emit(TType.attributeName, FAttrName);
+        Emit(TType.attributeValue, FAttrValue);
         FState := TState.tagEnd;
       end),
       //char action
@@ -323,16 +323,16 @@ begin
       //gt action
       TActionPair.Create(TAction.gt, procedure(AChar: char) begin
         FAttrValue := String.Empty;
-        emit(TType.attributeName, FAttrName);
-        emit(TType.attributeValue, FAttrValue);
+        Emit(TType.attributeName, FAttrName);
+        Emit(TType.attributeValue, FAttrValue);
         FData := String.Empty;
         FState := TState.data;
       end),
       //char action
       TActionPair.Create(TAction.char, procedure(AChar: char) begin
         FAttrValue := String.Empty;
-        emit(TType.attributeName, FAttrName);
-        emit(TType.attributeValue, FAttrValue);
+        Emit(TType.attributeName, FAttrName);
+        Emit(TType.attributeValue, FAttrValue);
         FAttrName := AChar;
         FState := TState.attributeName;
       end)
@@ -399,7 +399,7 @@ begin
         if not FOpeningQuote.IsEmpty() then
           FAttrValue := FAttrValue + AChar
         else begin
-          emit(TType.attributeValue, FAttrValue);
+          Emit(TType.attributeValue, FAttrValue);
           FIsClosing := true;
           FState := TState.tagEnd;
         end;
