@@ -139,7 +139,8 @@ var
 begin
   LActions := FStateMachine.Items[FState];
   if not LActions.TryGetValue(AChar.ToAction(), LProc) then
-    LActions.TryGetValue(TAction.error, LProc);
+    if not LActions.TryGetValue(TAction.error, LProc) then
+      LActions.TryGetValue(TAction.char, LProc);
 
   if Assigned(LProc) then
     LProc(AChar);
