@@ -3,6 +3,7 @@ Simple Delphi Lexer for XML documents
 
 ## Features
 - Very small and simple! (~400 sloc)
+- Cross-platform
 - Event driven API (SAX-like)
 - Fault tolerant
 - Handles CDATA
@@ -18,8 +19,8 @@ begin
   // Write to console
 end;
   
-const xml = '<hello color="blue"> '
-          + ' <greeting>Hello, world!</greeting> '
+const xml = '<hello color="blue">'
+          + '  <greeting>Hello, world!</greeting>'
           + '</hello>';
 
 var LLexer := TLexer.Create(LEvent);
