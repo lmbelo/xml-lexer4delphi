@@ -39,16 +39,26 @@ type
     attributeName,
     attributeValue
   );
+
+  TActionAndHandler = record
+    Action: TAction;
+    Handler: TProc<char>;
+  end;
   {$SCOPEDENUMS OFF}
 
   TLexer = class
+  private type
+    TStaticStateMachineActionHandler = array[TAction.lt..TAction.error] of TProc<char>;
+    TStaticStateMachine = array[TState.data..TState.attributeValue] of TStaticStateMachineActionHandler;
   public type
     TActionHandler = TProc<char>;
-    TEvent = TProc<TType, string>;
+    TEvent = reference to procedure(const AType: TType; const AData: string);
     TActionPair = TPair<TAction, TActionHandler>;
     TStateActions = TDictionary<TAction, TActionHandler>;
     TStateMachine = TObjectDictionary<TState, TStateActions>;
-  private         
+  private
+    FStaticStateMachine: TStaticStateMachine;
+  private
     FEvent: TEvent;
     FState: TState;
     FData: string;
@@ -58,14 +68,21 @@ type
     FIsClosing: boolean;
     FOpeningQuote: string;
     FStateMachine: TStateMachine;
-    procedure Emit(const AType: TType; const AData: string);
+    procedure Emit(const AType: TType; const AData: string); inline;
   protected
     procedure CreateStateMachine(); virtual;
-    procedure Step(const AChar: char);
+    procedure Step(const AChar: char); inline;
   public
     constructor Create(const AEvent: TEvent);
     destructor Destroy(); override;
 
+    /// <summary>
+    ///    Build the static state machine with the latest actions.
+    /// </summary>
+    procedure Build();
+    /// <summary>
+    ///    Tokenize the characters.
+    /// </summary>
     procedure Write(const AXmlData: string);
 
     property StateMachine: TStateMachine read FStateMachine;
@@ -80,31 +97,6 @@ implementation
 uses
   System.Classes;
 
-type
-  TCharHelper = record helper for char
-  public
-    function ToAction(): TAction;
-  end;
-
-{ TCharHelper }
-
-function TCharHelper.ToAction: TAction;
-begin
-  case Self of
-    ' ' : Result := TAction.space;
-    #13 : Result := TAction.space;
-    #10 : Result := TAction.space;
-    #9  : Result := TAction.space;
-    '<' : Result := TAction.lt;
-    '>' : Result := TAction.gt;
-    '"' : Result := TAction.quote;
-    '''': Result := TAction.quote;
-    '=' : Result := TAction.equal;
-    '/' : Result := TAction.slash;
-    else  Result := TAction.char;
-  end;
-end;
-
 { TLexer }
 
 constructor TLexer.Create(const AEvent: TEvent);
@@ -115,6 +107,7 @@ begin
   FState := TState.data;
   FStateMachine := TStateMachine.Create([doOwnsValues]);  
   CreateStateMachine();
+  Build();
 end;
 
 destructor TLexer.Destroy;
@@ -134,17 +127,43 @@ end;
 
 procedure TLexer.Step(const AChar: char);
 var
-  LProc: TActionHandler;
-  LActions: TStateActions;
+  LAction: TAction;
 begin
-  LActions := FStateMachine.Items[FState];
-  if not LActions.TryGetValue(AChar.ToAction(), LProc) then
-    if not LActions.TryGetValue(TAction.error, LProc) then
-      LActions.TryGetValue(TAction.char, LProc);
+  //Default char mappings
+  case AChar of
+    ' ' : LAction := TAction.space;
+    #13 : LAction := TAction.space;
+    #10 : LAction := TAction.space;
+    #9  : LAction := TAction.space;
+    '<' : LAction := TAction.lt;
+    '>' : LAction := TAction.gt;
+    '"' : LAction := TAction.quote;
+    '''': LAction := TAction.quote;
+    '=' : LAction := TAction.equal;
+    '/' : LAction := TAction.slash;
+    else  LAction := TAction.char;
+  end;
 
-  if Assigned(LProc) then
-    LProc(AChar);
-end;           
+  //The indexed array access is much faster than a dictionary
+  if Assigned(FStaticStateMachine[FState][LAction]) then
+    FStaticStateMachine[FState][LAction](AChar)
+  else if Assigned(FStaticStateMachine[FState][TAction.error]) then
+    FStaticStateMachine[FState][TAction.error](AChar)
+  else
+    FStaticStateMachine[FState][TAction.char](AChar);
+end;
+
+procedure TLexer.Build;
+var
+  LState: TState;
+  LAction: TAction;
+begin
+  for LState := Low(TState) to High(TState) do begin
+    for LAction := Low(TAction) to High(TAction) do
+      FStateMachine.Items[LState].TryGetValue(
+        LAction, FStaticStateMachine[LState][LAction]);
+  end;
+end;
 
 procedure TLexer.Write(const AXmlData: string);
 var
@@ -155,7 +174,14 @@ begin
 end;
 
 procedure TLexer.CreateStateMachine;
+var
+  LNoop: TProc<char>;
 begin
+  LNoop := procedure(AChar: char)
+  begin
+    //
+  end;
+
   //data state
   FStateMachine.Add(
     TState.data, TStateActions.Create([
@@ -191,7 +217,7 @@ begin
   FStateMachine.Add(
     TState.tagBegin, TStateActions.Create([
       //space action
-      TActionPair.Create(TAction.space, nil),
+      TActionPair.Create(TAction.space, LNoop),
       //char action
       TActionPair.Create(TAction.char, procedure(AChar: char) begin
         FTagName := AChar;
@@ -251,7 +277,7 @@ begin
         FData := String.Empty;
         FState := TState.data;
       end),
-      TActionPair.Create(TAction.char, nil)
+      TActionPair.Create(TAction.char, LNoop)
     ]));
 
   //attributeNameStart state
@@ -268,7 +294,7 @@ begin
         FState := TState.data;
       end),
       //space action
-      TActionPair.Create(TAction.space, nil),
+      TActionPair.Create(TAction.space, LNoop),
       //slash action
       TActionPair.Create(TAction.slash, procedure(AChar: char) begin
         FIsClosing := true;
@@ -314,7 +340,7 @@ begin
   FStateMachine.Add(
     TState.attributeNameEnd, TStateActions.Create([
       //space action
-      TActionPair.Create(TAction.space, nil),
+      TActionPair.Create(TAction.space, LNoop),
       //equal action
       TActionPair.Create(TAction.equal, procedure(AChar: char) begin
         Emit(TType.attributeName, FAttrName);
@@ -342,7 +368,7 @@ begin
   FStateMachine.Add(
     TState.attributeValueBegin, TStateActions.Create([
       //space action
-      TActionPair.Create(TAction.space, nil),
+      TActionPair.Create(TAction.space, LNoop),
       //quote action
       TActionPair.Create(TAction.quote, procedure(AChar: char) begin
         FOpeningQuote := AChar;
