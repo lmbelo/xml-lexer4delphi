@@ -1,3 +1,13 @@
+(********************************************************
+ *                XML Lexer for Delphi                  *
+ *                                                      *
+ * Copyright (c) 2023 by Lucas Moura Belo - lmbelo      *
+ * Licensed under the MIT License                       *
+ *                                                      *
+ * For full license text and more information visit:    *
+ * https://github.com/lmbelo/xml-lexer4delphi           *
+ ********************************************************)
+
 unit Xml.Lexer;
 
 interface
@@ -39,25 +49,23 @@ type
     attributeName,
     attributeValue
   );
-
-  TActionAndHandler = record
-    Action: TAction;
-    Handler: TProc<char>;
-  end;
   {$SCOPEDENUMS OFF}
 
   TLexer = class
-  private type
-    TStaticStateMachineActionHandler = array[TAction.lt..TAction.error] of TProc<char>;
-    TStaticStateMachine = array[TState.data..TState.attributeValue] of TStaticStateMachineActionHandler;
   public type
     TActionHandler = TProc<char>;
+  private type
+    TIndexedStateMachineActionHandler = array[TAction.lt..TAction.error] of TActionHandler;
+    TIndexedStateMachine = array[TState.data..TState.attributeValue] of TIndexedStateMachineActionHandler;
+  public type
     TEvent = reference to procedure(const AType: TType; const AData: string);
     TActionPair = TPair<TAction, TActionHandler>;
     TStateActions = TDictionary<TAction, TActionHandler>;
     TStateMachine = TObjectDictionary<TState, TStateActions>;
+  private const
+    UNREACHABLE_STATE_ACTION = nil;
   private
-    FStaticStateMachine: TStaticStateMachine;
+    FIndexedStateMachine: TIndexedStateMachine;
   private
     FEvent: TEvent;
     FState: TState;
@@ -77,7 +85,7 @@ type
     destructor Destroy(); override;
 
     /// <summary>
-    ///    Build the static state machine with the latest actions.
+    ///    Build the indexed state machine with the latest actions.
     /// </summary>
     procedure Build();
     /// <summary>
@@ -145,12 +153,12 @@ begin
   end;
 
   //The indexed array access is much faster than a dictionary
-  if Assigned(FStaticStateMachine[FState][LAction]) then
-    FStaticStateMachine[FState][LAction](AChar)
-  else if Assigned(FStaticStateMachine[FState][TAction.error]) then
-    FStaticStateMachine[FState][TAction.error](AChar)
+  if (FIndexedStateMachine[FState][LAction] <> UNREACHABLE_STATE_ACTION) then
+    FIndexedStateMachine[FState][LAction](AChar)
+  else if (FIndexedStateMachine[FState][TAction.error] <> UNREACHABLE_STATE_ACTION) then
+    FIndexedStateMachine[FState][TAction.error](AChar)
   else
-    FStaticStateMachine[FState][TAction.char](AChar);
+    FIndexedStateMachine[FState][TAction.char](AChar);
 end;
 
 procedure TLexer.Build;
@@ -159,9 +167,13 @@ var
   LAction: TAction;
 begin
   for LState := Low(TState) to High(TState) do begin
-    for LAction := Low(TAction) to High(TAction) do
+    for LAction := Low(TAction) to High(TAction) do begin
+      //Clear the state action
+      FIndexedStateMachine[LState][LAction] := UNREACHABLE_STATE_ACTION;
+      //Copy the state action if it exists
       FStateMachine.Items[LState].TryGetValue(
-        LAction, FStaticStateMachine[LState][LAction]);
+        LAction, FIndexedStateMachine[LState][LAction]);
+    end;
   end;
 end;
 
@@ -175,9 +187,9 @@ end;
 
 procedure TLexer.CreateStateMachine;
 var
-  LNoop: TProc<char>;
+  LNoOp: TActionHandler;
 begin
-  LNoop := procedure(AChar: char)
+  LNoOp := procedure(AChar: char)
   begin
     //
   end;
@@ -217,7 +229,7 @@ begin
   FStateMachine.Add(
     TState.tagBegin, TStateActions.Create([
       //space action
-      TActionPair.Create(TAction.space, LNoop),
+      TActionPair.Create(TAction.space, LNoOp),
       //char action
       TActionPair.Create(TAction.char, procedure(AChar: char) begin
         FTagName := AChar;
@@ -277,7 +289,7 @@ begin
         FData := String.Empty;
         FState := TState.data;
       end),
-      TActionPair.Create(TAction.char, LNoop)
+      TActionPair.Create(TAction.char, LNoOp)
     ]));
 
   //attributeNameStart state
@@ -294,7 +306,7 @@ begin
         FState := TState.data;
       end),
       //space action
-      TActionPair.Create(TAction.space, LNoop),
+      TActionPair.Create(TAction.space, LNoOp),
       //slash action
       TActionPair.Create(TAction.slash, procedure(AChar: char) begin
         FIsClosing := true;
@@ -340,7 +352,7 @@ begin
   FStateMachine.Add(
     TState.attributeNameEnd, TStateActions.Create([
       //space action
-      TActionPair.Create(TAction.space, LNoop),
+      TActionPair.Create(TAction.space, LNoOp),
       //equal action
       TActionPair.Create(TAction.equal, procedure(AChar: char) begin
         Emit(TType.attributeName, FAttrName);
@@ -368,7 +380,7 @@ begin
   FStateMachine.Add(
     TState.attributeValueBegin, TStateActions.Create([
       //space action
-      TActionPair.Create(TAction.space, LNoop),
+      TActionPair.Create(TAction.space, LNoOp),
       //quote action
       TActionPair.Create(TAction.quote, procedure(AChar: char) begin
         FOpeningQuote := AChar;
