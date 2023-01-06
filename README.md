@@ -14,7 +14,7 @@ Simple Delphi Lexer for XML documents
 ### Happy case
 
 ```delphi
-var LEvent: TProc<TType, string> := procedure(AType: TType; AData: string)
+var LEvent: TEvent := procedure(AType: TType; AData: string)
 begin
   // Write to console
 end;
@@ -91,14 +91,14 @@ Console output (note the open-tag value):
 ```delphi
 LLexer := TLexer.Create(LEvent);
 try
-  LLexer.StateMachine[TState.tagBegin].AddOrSetValue(TAction.lt, procedure(AChar: char) 
+  LLexer.StateMachine[TState.tagBegin][TAction.lt] := procedure(AChar: char) 
   begin 
     //
-  end);
-  LLexer.StateMachine[TState.tagName].AddOrSetValue(TAction.error, procedure(AChar: char) 
+  end;
+  LLexer.StateMachine[TState.tagName][TAction.error] := procedure(AChar: char) 
   begin 
     //
-  end);
+  end;
 
   LLexer.Write('<<hello">hi</hello attr="value">');
 finally
