@@ -100,6 +100,7 @@ try
     //
   end);
 
+  LLexer.Build(); //Builds the indexed state machine
   LLexer.Write('<<hello">hi</hello attr="value">');
 finally
   LLexer.Free();
